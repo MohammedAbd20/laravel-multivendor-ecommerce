@@ -1,127 +1,78 @@
 @extends('layouts.dashboard')
-@section('title','categories')
+
+@section('title', 'Categories')
 @section('breadcrump')
     @parent
-    <li class="breadcrumb-item active">categories</li>
+    <li>Categories</li>
+@endsection
+@section('subtitle')
+    Group products so shoppers can find them. Sub-categories sit under a parent.
+@endsection
+@section('actions')
+    <a href="{{ route('categories.trash') }}" class="btn btn-light"><i class="fas fa-trash-alt me-2"></i>Trash @if ($trashed)<span class="small-muted">{{ $trashed }}</span>@endif</a>
+    <a href="{{ route('categories.create') }}" class="btn btn-primary"><i class="fas fa-plus me-2"></i>New category</a>
 @endsection
 
 @section('content')
-
-
-    <div class="my-3">
-        <a href="{{ route('categories.create') }}" class="btn btn-outline-primary">create</a>
-        <a href="{{ route('categories.trash') }}" class="btn btn-outline-primary">trash</a>
-        {{-- <a href="{{ route('categories.trash') }}" class="btn btn-outline-primary">delete all</a> --}}
-        @if ($categories->count() > 1)
-            <button type="button" class="btn btn-outline-danger action" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
-                delete all
-            </button>
-        @endif
-    </div>
-    <x-alert type="success" />
-    <x-alert type="info"/>
-    <x-alert type="danger"/>
-
-    {{-- @if ($categories->count() > 1) --}}
-        <form action="{{ URL::current() }}" method="get" class="d-flex justify-content-between mb-3">
-            <x-form.input name="name" placeholder="Name" class="mx-2" :value="request('name')"/>
-            <select name="status" class="form-control mx-2">
-                <option value="">All</option>
-                <option value="active" @selected(request('status')=='active')>Active</option>
-                <option value="archived" @selected(request('status')=='archived')>Archived</option>
-            </select>
-            <button class="btn btn-dark">Filter</button>
-        </form>
-    {{-- @endif --}}
-    <table class="table">
-        <thead>
-            <tr>
-                <th></th>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Parent</th>
-                <th>Count Product</th>
-                <th>Status</th>
-                <th>Created At</th>
-                <th colspan="2"></th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($categories as $category)
-                <tr>
-                    <td><img src="{{ file_exists(public_path('storage/'.$category->image)) ? asset('storage/'.$category->image) : $category->image }}" alt="" height="70"></td>
-                    <td>{{ $category->id }}</td>
-                    <td>{{ $category->name }}</td>
-                    <td>{{ $category->parent->name }}</td>
-                    <td>{{ $category->products_count}}</td>
-                    <td>{{ $category->status }}</td>
-                    <td>{{ $category->created_at }}</td>
-                    <td><a href="{{ route('categories.edit', $category->id) }}" class="btn btn-sm btn-outline-success">Edit</a></td>
-                    <td>
-                        <!-- Button trigger modal -->
-                        <button type="button" class="btn btn-outline-danger action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ $category->id }}">
-                            Delete
-                        </button>
-                    </td>
-                </tr>
-
-                <!-- Modal لكل فئة -->
-                <div class="modal fade" id="deleteModal{{ $category->id }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h3 class="modal-title" id="exampleModalLabel">Delete Confirmation</h3>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <h4>Are you sure you want to <span class="font-weight-bold">delete</span> this category?</h4>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">No</button>
-                                <form action="{{ route('categories.destroy', $category->id) }}" method="post">
-                                    @csrf
-                                    @method('delete')
-                                    <button type="submit" class="btn btn-outline-danger">Yes, Delete</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            @empty
-                <tr>
-                    <td colspan="8">No categories defined</td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
-
-    <div class="d-flex justify-content-between  align-items-center">
-        {{ $categories->withQueryString() ->links() }}
-        <b>All Categories: {{ $categories->total() }}</b>
-    </div>
-
-
-    <!-- Modal لكل فئة -->
-    <div class="modal fade" id="deleteAllModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3 class="modal-title" id="exampleModalLabel">Delete Confirmation</h3>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <h4>Are you sure you want to <span class="font-weight-bold">Delete All</span> this category?</h4>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">No</button>
-                    <form action="{{ route('categories.destroyAll') }}" method="post">
-                        @csrf
-                        @method('delete')
-                        <button type="submit" class="btn btn-outline-danger">Yes, Delete</button>
-                    </form>
-                </div>
+    @php
+        $sortUrl = fn ($col, $first = 'asc') => request()->fullUrlWithQuery(['sort' => $col, 'dir' => ($sort === $col ? ($dir === 'desc' ? 'asc' : 'desc') : $first), 'page' => null]);
+        $arrow = fn ($col) => $sort === $col ? ($dir === 'asc' ? ' ↑' : ' ↓') : '';
+    @endphp
+    <section class="panel panel-flush">
+        <form class="filters" method="get" action="{{ route('categories.index') }}">
+            <div class="field grow">
+                <label for="f-q">Search</label>
+                <input id="f-q" class="form-control" type="search" name="q" value="{{ request('q') }}" placeholder="Category name">
             </div>
+            <div class="field">
+                <label for="f-status">Status</label>
+                <select id="f-status" class="form-select" name="status">
+                    <option value="">All</option>
+                    @foreach (\App\Models\Category::STATUSES as $s)<option value="{{ $s }}" @selected(request('status') === $s)>{{ ucfirst($s) }}</option>@endforeach
+                </select>
+            </div>
+            <button class="btn btn-primary">Apply</button>
+            @if (request()->hasAny(['q', 'status']))<a class="btn btn-ghost" href="{{ route('categories.index') }}">Clear</a>@endif
+        </form>
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th class="{{ $sort === 'name' ? 'sorted' : '' }}"><a href="{{ $sortUrl('name') }}">Category{{ $arrow('name') }}</a></th>
+                        <th>Parent</th>
+                        <th class="num {{ $sort === 'products_count' ? 'sorted' : '' }}"><a href="{{ $sortUrl('products_count', 'desc') }}">Products{{ $arrow('products_count') }}</a></th>
+                        <th>Status</th>
+                        <th class="{{ $sort === 'created_at' ? 'sorted' : '' }}"><a href="{{ $sortUrl('created_at', 'desc') }}">Created{{ $arrow('created_at') }}</a></th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($categories as $category)
+                        <tr>
+                            <td>
+                                <a class="row-link" href="{{ route('categories.edit', $category->id) }}">{{ $category->name }}</a>
+                                @if ($category->children_count)<div class="small-muted">{{ $category->children_count }} {{ str('sub-category')->plural($category->children_count) }}</div>@endif
+                            </td>
+                            <td class="muted">{{ $category->parent_id ? $category->parent->name : '-' }}</td>
+                            <td class="num"><a href="{{ route('products.index', ['category_id' => $category->id]) }}">{{ number_format($category->products_count) }}</a></td>
+                            <td><span class="status status-{{ $category->status }}">{{ ucfirst($category->status) }}</span></td>
+                            <td class="muted">{{ $category->created_at?->format('M j, Y') }}</td>
+                            <td class="cell-actions">
+                                <a class="btn btn-sm btn-light" href="{{ route('categories.edit', $category->id) }}">Edit</a>
+                                <form class="d-inline" action="{{ route('categories.destroy', $category->id) }}" method="post" data-confirm="Move &quot;{{ $category->name }}&quot; to the trash? Its {{ $category->products_count }} {{ str('product')->plural($category->products_count) }} will lose this category while it is in the trash." data-confirm-label="Move to trash">
+                                    @csrf @method('DELETE')
+                                    <button class="btn btn-sm btn-ghost" title="Move to trash" aria-label="Move {{ $category->name }} to trash"><i class="fas fa-trash-alt"></i></button>
+                                </form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6"><div class="empty"><h3>No categories found</h3><p class="mb-0">Create the first category to organise your catalog.</p></div></td></tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
-    </div>
+        @if ($categories->hasPages())
+            <div class="pager"><span class="small-muted">Showing {{ $categories->firstItem() }}-{{ $categories->lastItem() }} of {{ $categories->total() }}</span>{{ $categories->links('pagination::bootstrap-5') }}</div>
+        @endif
+    </section>
 @endsection
-

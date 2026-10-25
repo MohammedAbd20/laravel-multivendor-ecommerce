@@ -10,170 +10,151 @@ use Illuminate\Support\Str;
 
 class CategoriesDashboard extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    private const SORTS = ['name', 'products_count', 'created_at'];
+
+    public function index(Request $request)
     {
-        $request = request();
-        // leftJoin('categories as parents','parents.id','=','categories.parent_id')
-        // ->select([
-        //     'categories.*',
-        //     'parents.name as parent_name'
-        // ])
-        $categories = Category::with(['products','parent','children'])
-        ->withCount('products')
-        ->filter($request)->paginate(8);
-        return view('dashboard.categories.index',compact('categories'));
+        $sort = in_array($request->query('sort'), self::SORTS, true) ? $request->query('sort') : 'name';
+        $dir = $request->query('dir') === 'desc' ? 'desc' : 'asc';
+
+        $categories = Category::with('parent')
+            ->withCount(['products' => fn ($q) => $q->withoutGlobalScopes(), 'children'])
+            ->filter($request->only(['q', 'status']))
+            ->orderBy($sort, $dir)->orderBy('id')
+            ->paginate(15)->withQueryString();
+
+        return view('dashboard.categories.index', [
+            'categories' => $categories,
+            'sort' => $sort,
+            'dir' => $dir,
+            'trashed' => Category::onlyTrashed()->count(),
+        ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        $parents = Category::all();
-        $category = new Category();
-        return view('dashboard.categories.create',compact('parents','category'));
+        return view('dashboard.categories.create', [
+            'category' => new Category(['status' => 'active']),
+            'parents' => Category::orderBy('name')->get(),
+        ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
+        $data = $request->validate(Category::rules());
+        $category = Category::create($this->payload($request, $data));
 
-        $request->validate(Category::rules());
-
-
-        $request->merge([
-            'slug' => Str::slug($request->post('name'))
-        ]);
-        $data = $request->except('image');
-        if($request->hasFile('image')){
-            $file = $request->file('image');
-            $path = $file->store('uploads','public');
-            // dd($path);
-            $data['image']=$path;
-        }
-
-        $categories = Category::create($data);
-
-        return redirect()->route('categories.index')->with('success','Category Created');
+        return redirect()->route('categories.index')->with('success', "Category \"{$category->name}\" created.");
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
-        //
+        return redirect()->route('categories.edit', $id);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(string $id)
     {
         $category = Category::find($id);
-        // dd($category);
-        if($category == null){
-            return redirect()->route("categories.index")->with('info','The Category Not Found');
+        if ($category === null) {
+            return redirect()->route('categories.index')->with('info', 'That category no longer exists.');
         }
 
-        $parents = Category::where('id','<>',$id)->get();
-        return view('dashboard.categories.edit',compact('category','parents'));
+        return view('dashboard.categories.edit', [
+            'category' => $category,
+            'parents' => Category::where('id', '<>', $id)->orderBy('name')->get(),
+        ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
-        $request->validate(Category::rules($id));
+        $category = Category::findOrFail($id);
+        $data = $request->validate(Category::rules($category->id));
+        $category->update($this->payload($request, $data, $category));
 
-        $category = Category::findOrfail($id);
-        $request->merge([
-            'slug' => Str::slug($request->post('name'))
-        ]);
-
-        $data = $request->except('image');
-        if($request->hasFile('image')){
-            $file = $request->file('image');
-            $path = $file->store('uploads','public');
-            // dd($path);
-            $data['image']=$path;
-        }
-        $category->update($data);
-
-        return redirect()->route('categories.index')->with('success','Category Updated');
+        return redirect()->route('categories.index')->with('success', "Category \"{$category->name}\" updated.");
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(string $id)
     {
-        $category = Category::findOrfail($id);
+        $category = Category::findOrFail($id);
         $category->delete();
-        return redirect()->route('categories.index')->with('danger','Category Deleted, now show in trash');
+
+        return redirect()->route('categories.index')->with('success', "\"{$category->name}\" moved to the trash.");
     }
 
-
-    public function trash() {
-        $request = request();
-        $categories = Category::onlyTrashed()->filter($request)->paginate(8);
-        return view('dashboard.categories.trash',compact('categories'));
-    }
-
-    public function restore(Request $request,$id) {
-        $category = Category::onlyTrashed()->findOrfail($id);
-        $category->restore();
-        return redirect()->route('categories.trash')->with('success','Category Restore');
-    }
-    public function forceDelete($id) {
-        $category = Category::onlyTrashed()->findOrfail($id);
-        $category->forceDelete();
-        if($category->image){
-            Storage::disk('public')->delete($category->image);
-        }
-        return redirect()->route('categories.trash')->with('success','Category Deleted Forever!');
-    }
-
-    public function destroyAll()
+    public function trash(Request $request)
     {
-        $categories = Category::all();
+        $categories = Category::onlyTrashed()->filter($request->only(['q']))->latest('deleted_at')->paginate(15)->withQueryString();
 
-        foreach ($categories as $category) {
-            $category->delete();
-        }
-
-        return redirect()->route('categories.index')->with('danger', 'All Categories Deleted, now show in trash');
+        return view('dashboard.categories.trash', ['categories' => $categories]);
     }
+
+    public function restore(Request $request, $id)
+    {
+        $category = Category::onlyTrashed()->findOrFail($id);
+        $category->restore();
+
+        return redirect()->route('categories.trash')->with('success', "\"{$category->name}\" restored.");
+    }
+
+    public function forceDelete($id)
+    {
+        $category = Category::onlyTrashed()->findOrFail($id);
+        $this->deleteImage($category->image);
+        $category->forceDelete();
+
+        return redirect()->route('categories.trash')->with('success', "\"{$category->name}\" deleted permanently.");
+    }
+
+    public function restoreAll()
+    {
+        $n = 0;
+        Category::onlyTrashed()->chunkById(100, function ($items) use (&$n) {
+            foreach ($items as $item) {
+                $item->restore();
+                $n++;
+            }
+        });
+
+        return redirect()->route('categories.trash')->with('success', "{$n} " . str('category')->plural($n) . ' restored.');
+    }
+
     public function forceDeleteAll()
     {
-        // الحصول على جميع الفئات المحذوفة
-        $categories = Category::onlyTrashed()->paginate(8);
+        $n = 0;
+        Category::onlyTrashed()->chunkById(100, function ($items) use (&$n) {
+            foreach ($items as $item) {
+                $this->deleteImage($item->image);
+                $item->forceDelete();
+                $n++;
+            }
+        });
 
-        foreach ($categories as $category) {
-            $category->forceDelete();
-            if($category->image){
-                Storage::disk('public')->delete($category->image);
+        return redirect()->route('categories.trash')->with('success', "Trash emptied ({$n} " . str('category')->plural($n) . ' deleted permanently).');
+    }
+
+    private function payload(Request $request, array $data, ?Category $category = null): array
+    {
+        $payload = collect($data)->except('image')->all();
+        $payload['parent_id'] = $payload['parent_id'] ?? null;
+        if (! $category || $category->name !== $data['name']) {
+            $payload['slug'] = Category::uniqueSlug($data['name'], $category?->id);
+        }
+
+        if ($request->hasFile('image')) {
+            $payload['image'] = $request->file('image')->store('uploads', 'public');
+            if ($category) {
+                $this->deleteImage($category->image);
             }
         }
 
-        return redirect()->route('categories.trash')->with('success', 'All Categories Deleted Forever!');
+        return $payload;
     }
 
-    public function restoreAll(Request $request)
+    private function deleteImage(?string $path): void
     {
-        // الحصول على جميع الفئات المحذوفة
-        $categories = Category::onlyTrashed()->paginate(8);
-
-        foreach ($categories as $category) {
-            $category->restore();
+        if ($path && ! Str::startsWith($path, ['http://', 'https://'])) {
+            Storage::disk('public')->delete($path);
         }
-
-        return redirect()->route('categories.trash')->with('success', 'All Categories Restored Successfully!');
     }
 }

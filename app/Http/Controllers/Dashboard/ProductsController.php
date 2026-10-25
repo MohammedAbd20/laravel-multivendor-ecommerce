@@ -10,198 +10,214 @@ use App\Models\Tag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-
+use Illuminate\Validation\Rule;
 
 class ProductsController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        $request = request();
-        // leftJoin('products as parents','parents.id','=','products.parent_id')
-        // ->select([
-        //     'products.*',
-        //     'parents.name as parent_name'
-        // ])
-        // ->
-        $products = Product::with(['category','store','tags'])
-        ->filter($request)->paginate();
+    private const SORTS = ['name', 'price', 'quantity', 'created_at'];
+    private const FILTERS = ['q', 'store_id', 'category_id', 'status', 'stock', 'tag_id'];
 
-        // dd($products);
-        return view('dashboard.products.index',compact('products'));
+    public function index(Request $request)
+    {
+        $filters = $request->only(self::FILTERS);
+        $sort = in_array($request->query('sort'), self::SORTS, true) ? $request->query('sort') : 'created_at';
+        $dir = $request->query('dir') === 'asc' ? 'asc' : 'desc';
+
+        $products = Product::with(['category', 'store', 'tags'])
+            ->filter($filters)
+            ->orderBy("products.{$sort}", $dir)->orderByDesc('products.id')
+            ->paginate(15)->withQueryString();
+
+        // Status tabs: counts respect every filter except status.
+        $counts = Product::filter(collect($filters)->except('status')->all())
+            ->selectRaw('products.status, COUNT(*) as n')->groupBy('products.status')->pluck('n', 'status');
+
+        return view('dashboard.products.index', [
+            'products' => $products,
+            'counts' => $counts,
+            'stores' => Store::orderBy('name')->get(),
+            'categories' => Category::orderBy('name')->get(),
+            'tags' => Tag::orderBy('name')->get(),
+            'sort' => $sort,
+            'dir' => $dir,
+            'trashed' => Product::onlyTrashed()->count(),
+        ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-        {
-            $categoryParents = Category::all();
-            $storeParents = Store::all();
+    public function create(Request $request)
+    {
+        $product = new Product([
+            'status' => 'active', 'quantity' => 0, 'store_id' => $request->query('store_id'),
+        ]);
 
-            $product = new Product();
-            return view('dashboard.products.create',compact('categoryParents','product','storeParents'));
-        }
+        return view('dashboard.products.create', $this->formData($product));
+    }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
+        $data = $request->validate(Product::rules());
+        $product = Product::create($this->payload($request, $data));
+        $this->syncTags($product, $data['tags'] ?? '');
 
-        $request->validate([
-            'name'=>'required'
-        ]);
-
-        $data = $request->except('image');
-        if($request->hasFile('image')){
-            $file = $request->file('image');
-            $path = $file->store('uploads','public');
-            // dd($path);
-            $data['image']=$path;
-        }
-
-        $products = Product::create($data);
-
-        return redirect()->route('products.index')->with('success','Product Created');
+        return redirect()->route('products.index')->with('success', "Product \"{$product->name}\" created.");
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(string $id)
     {
-        $product = Product::find($id);
-        // dd($product);
-        if($product == null){
-            return redirect()->route("products.index")->with('info','The Product Not Found');
+        $product = Product::with('tags')->find($id);
+        if ($product === null) {
+            return redirect()->route('products.index')->with('info', 'That product no longer exists.');
         }
 
-        $parents = Product::where('id','<>',$id)->get();
-
-        $categoryParents = Category::all();
-        $storeParents = Store::all();
-        return view('dashboard.products.edit',compact('product','parents','categoryParents','storeParents'));
+        return view('dashboard.products.edit', $this->formData($product));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
-        $request->validate([
-            'name' => 'required'
-        ]);
+        $product = Product::findOrFail($id);
+        $data = $request->validate(Product::rules($product->id));
 
-        $product = Product::findOrfail($id);
-        $request->merge([
-            'slug' => Str::slug($request->post('name'))
-        ]);
+        $payload = $this->payload($request, $data, $product);
+        $product->update($payload);
+        $this->syncTags($product, $data['tags'] ?? '');
 
-        $data = $request->except(['image', 'tags']);
-
-        if($request->hasFile('image')){
-            $file = $request->file('image');
-            $path = $file->store('uploads','public');
-            // dd($path);
-            $data['image']=$path;
-        }
-
-        $tags = explode(',',$request->post('tags'));
-        $tag_ids = [];
-        foreach ($tags as $t_name){
-            $slug = Str::slug($t_name);
-            $tag = Tag::where('slug',$slug)->first();
-            if(!$tag){
-                $tag = Tag::create([
-                    'name' =>$t_name,
-                    'slug' => $slug,
-                ]);
-            }
-            // dd($tag);
-            $tag_ids[] = $tag->id;
-        }
-        $product->tags()->sync($tag_ids);
-        $product->update($data);
-
-        return redirect()->route('products.index')->with('success','Product Updated');
+        return redirect()->route('products.index')->with('success', "Product \"{$product->name}\" updated.");
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    public function show(string $id)
+    {
+        return redirect()->route('products.edit', $id);
+    }
+
     public function destroy(string $id)
     {
-        $product = Product::findOrfail($id);
+        $product = Product::findOrFail($id);
         $product->delete();
-        return redirect()->route('products.index')->with('danger','Product Deleted, now show in trash');
+
+        return redirect()->route('products.index')->with('success', "\"{$product->name}\" moved to the trash.");
     }
 
-
-    public function trash() {
-        $request = request();
-        $products = Product::onlyTrashed()->filter($request)->paginate(8);
-        return view('dashboard.products.trash',compact('products'));
-    }
-
-    public function restore(Request $request,$id) {
-        $product = Product::onlyTrashed()->findOrfail($id);
-        $product->restore();
-        return redirect()->route('products.trash')->with('success','Product Restore');
-    }
-    public function forceDelete($id) {
-        $product = Product::onlyTrashed()->findOrfail($id);
-        $product->forceDelete();
-        if($product->image){
-            Storage::disk('public')->delete($product->image);
-        }
-        return redirect()->route('products.trash')->with('success','Product Deleted Forever!');
-    }
-
-    public function destroyAll()
+    /** Apply one action to the selected products. */
+    public function bulk(Request $request)
     {
-        $products = Product::all();
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+            'action' => ['required', Rule::in(['active', 'draft', 'archived', 'delete'])],
+        ]);
 
-        foreach ($products as $product) {
-            $product->delete();
+        $query = Product::whereIn('id', $data['ids']);
+        $n = (clone $query)->count();
+
+        if ($data['action'] === 'delete') {
+            $query->get()->each->delete();
+            $msg = "{$n} " . str('product')->plural($n) . ' moved to the trash.';
+        } else {
+            $query->update(['status' => $data['action']]);
+            $msg = "{$n} " . str('product')->plural($n) . " set to {$data['action']}.";
         }
 
-        return redirect()->route('products.index')->with('danger', 'All Products Deleted, now show in trash');
+        return back()->with('success', $msg);
     }
+
+    public function trash(Request $request)
+    {
+        $products = Product::onlyTrashed()->with(['category', 'store'])
+            ->filter($request->only(['q', 'store_id']))
+            ->latest('deleted_at')->paginate(15)->withQueryString();
+
+        return view('dashboard.products.trash', ['products' => $products, 'stores' => Store::orderBy('name')->get()]);
+    }
+
+    public function restore(Request $request, $id)
+    {
+        $product = Product::onlyTrashed()->findOrFail($id);
+        $product->restore();
+
+        return redirect()->route('products.trash')->with('success', "\"{$product->name}\" restored.");
+    }
+
+    public function forceDelete($id)
+    {
+        $product = Product::onlyTrashed()->findOrFail($id);
+        $this->deleteImage($product->image);
+        $product->forceDelete();
+
+        return redirect()->route('products.trash')->with('success', "\"{$product->name}\" deleted permanently.");
+    }
+
+    public function restoreAll()
+    {
+        $n = 0;
+        Product::onlyTrashed()->chunkById(100, function ($products) use (&$n) {
+            foreach ($products as $product) {
+                $product->restore();
+                $n++;
+            }
+        });
+
+        return redirect()->route('products.trash')->with('success', "{$n} " . str('product')->plural($n) . ' restored.');
+    }
+
     public function forceDeleteAll()
     {
-        // الحصول على جميع الفئات المحذوفة
-        $products = Product::onlyTrashed()->paginate(8);
-
-        foreach ($products as $product) {
-            $product->forceDelete();
-            if($product->image){
-                Storage::disk('public')->delete($product->image);
+        $n = 0;
+        Product::onlyTrashed()->chunkById(100, function ($products) use (&$n) {
+            foreach ($products as $product) {
+                $this->deleteImage($product->image);
+                $product->forceDelete();
+                $n++;
             }
-        }
+        });
 
-        return redirect()->route('products.trash')->with('success', 'All Products Deleted Forever!');
+        return redirect()->route('products.trash')->with('success', "Trash emptied ({$n} " . str('product')->plural($n) . ' deleted permanently).');
     }
 
-    public function restoreAll(Request $request)
+    private function formData(Product $product): array
     {
-        // الحصول على جميع الفئات المحذوفة
-        $products = Product::onlyTrashed()->paginate(8);
+        return [
+            'product' => $product,
+            'categories' => Category::orderBy('name')->get(),
+            'stores' => Store::orderBy('name')->get(),
+            'knownTags' => Tag::orderBy('name')->pluck('name'),
+        ];
+    }
 
-        foreach ($products as $product) {
-            $product->restore();
+    private function payload(Request $request, array $data, ?Product $product = null): array
+    {
+        $payload = collect($data)->except(['image', 'tags'])->all();
+        $payload['featured'] = $request->boolean('featured');
+        $payload['category_id'] = $payload['category_id'] ?? null;
+
+        if ($request->hasFile('image')) {
+            $payload['image'] = $request->file('image')->store('uploads', 'public');
+            if ($product) {
+                $this->deleteImage($product->image);
+            }
+        } elseif ($product && $request->boolean('remove_image')) {
+            $this->deleteImage($product->image);
+            $payload['image'] = null;
         }
 
-        return redirect()->route('products.trash')->with('success', 'All Products Restored Successfully!');
+        return $payload;
+    }
+
+    private function syncTags(Product $product, string $csv): void
+    {
+        $ids = collect(explode(',', $csv))
+            ->map(fn ($name) => trim($name))
+            ->filter()
+            ->unique(fn ($name) => Str::slug($name))
+            ->map(fn ($name) => Tag::firstOrCreate(['slug' => Str::slug($name)], ['name' => $name])->id)
+            ->all();
+
+        $product->tags()->sync($ids);
+    }
+
+    private function deleteImage(?string $path): void
+    {
+        if ($path && ! Str::startsWith($path, ['http://', 'https://'])) {
+            Storage::disk('public')->delete($path);
+        }
     }
 }

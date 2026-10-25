@@ -1,168 +1,47 @@
 @extends('layouts.dashboard')
-@section('title','Trash products')
+
+@section('title', 'Product trash')
 @section('breadcrump')
     @parent
-    <li class="breadcrumb-item"><a href="{{ route('products.index') }}">products</a></li>
-    <li class="breadcrumb-item active">Trash</li>
+    <li><a href="{{ route('products.index') }}">Products</a></li>
+    <li>Trash</li>
+@endsection
+@section('subtitle')
+    Deleted products stay here until you restore them or delete them permanently.
+@endsection
+@section('actions')
+    <a href="{{ route('products.index') }}" class="btn btn-light"><i class="fas fa-arrow-left me-2"></i>Back to products</a>
+    @if ($products->total() > 0)
+        <form action="{{ route('products.restoreAll') }}" method="post" class="d-inline">@csrf<button class="btn btn-light">Restore all</button></form>
+        <form action="{{ route('products.forceDeleteAll') }}" method="post" class="d-inline" data-confirm="Permanently delete every product in the trash? This cannot be undone." data-confirm-label="Empty trash">@csrf @method('DELETE')<button class="btn btn-outline-danger">Empty trash</button></form>
+    @endif
 @endsection
 
 @section('content')
-
-
-    <div class="my-3">
-        <a href="{{ route('products.index') }}" class="btn btn-outline-primary">Back</a>
-        @if ($products->count() > 1)
-            <button type="button" class="btn btn-outline-success action" data-bs-toggle="modal" data-bs-target="#restoreAllModal">
-                Restore All
-            </button>
-            <button type="button" class="btn btn-outline-danger action" data-bs-toggle="modal" data-bs-target="#deleteAllModal">
-                Delete All
-            </button>
+    <section class="panel panel-flush">
+        <div class="tbl-wrap">
+            <table class="tbl">
+                <thead><tr><th>Product</th><th>Store</th><th class="num">Price</th><th>Deleted</th><th></th></tr></thead>
+                <tbody>
+                    @forelse ($products as $product)
+                        <tr>
+                            <td><div class="cell-product"><img class="thumb" src="{{ $product->image_url }}" alt=""><div class="fw-semibold">{{ $product->name }}<div class="sub">{{ $product->category?->name }}</div></div></div></td>
+                            <td>@if ($product->store)<span class="store-chip" style="--c: {{ $product->store->color }}"><i></i>{{ $product->store->name }}</span>@endif</td>
+                            <td class="num">${{ number_format($product->price, 2) }}</td>
+                            <td class="muted">{{ $product->deleted_at->diffForHumans() }}</td>
+                            <td class="cell-actions">
+                                <form class="d-inline" action="{{ route('products.restore', $product->id) }}" method="post">@csrf<button class="btn btn-sm btn-light">Restore</button></form>
+                                <form class="d-inline" action="{{ route('products.force-delete', $product->id) }}" method="post" data-confirm="Permanently delete &quot;{{ $product->name }}&quot;? This cannot be undone." data-confirm-label="Delete permanently">@csrf @method('DELETE')<button class="btn btn-sm btn-outline-danger">Delete permanently</button></form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5"><div class="empty"><h3>The trash is empty</h3><p class="mb-0">Products you delete will appear here.</p></div></td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        @if ($products->hasPages())
+            <div class="pager"><span class="small-muted">{{ $products->total() }} in trash</span>{{ $products->links('pagination::bootstrap-5') }}</div>
         @endif
-    </div>
-    <x-alert type="success" />
-    <x-alert type="info"/>
-
-    {{-- @if ($products->count() > 1) --}}
-        <form action="{{ URL::current() }}" method="get" class="d-flex justify-content-between mb-3">
-            <x-form.input name="name" placeholder="Name" class="mx-2" :value="request('name')"/>
-            <select name="status" class="form-control mx-2">
-                <option value="">All</option>
-                <option value="active" @selected(request('status')=='active')>Active</option>
-                <option value="archived" @selected(request('status')=='archived')>Archived</option>
-            </select>
-            <button class="btn btn-dark">Filter</button>
-        </form>
-    {{-- @endif --}}
-    <table class="table">
-        <thead>
-            <tr>
-                <th></th>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Parent</th>
-                <th>Status</th>
-                <th>Created At</th>
-                <th colspan="2"></th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse ($products as $product)
-                <tr>
-                    <td><img src="{{ asset('storage/'.$product->image) }}" alt="" height="70"></td>
-                    <td>{{ $product->id }}</td>
-                    <td>{{ $product->name }}</td>
-                    <td>{{ $product->parent_name }}</td>
-                    <td>{{ $product->status }}</td>
-                    <td>{{ $product->created_at }}</td>
-                    {{-- <td><a href="{{ route('products.restore', $product->id) }}" class="btn btn-sm btn-outline-success">Restore</a></td> --}}
-                    <td>
-                        <!-- Button trigger modal -->
-                        <button type="button" class="btn btn-outline-success action" data-bs-toggle="modal" data-bs-target="#restoreModal{{ $product->id }}">
-                            Restore
-                        </button>
-                    </td>
-                    <td>
-                        <!-- Button trigger modal -->
-                        <button type="button" class="btn btn-outline-danger action" data-bs-toggle="modal" data-bs-target="#deleteModal{{ $product->id }}">
-                            Delete
-                        </button>
-                    </td>
-                </tr>
-
-                <!-- Modal لكل فئة -->
-                <div class="modal fade" id="deleteModal{{ $product->id }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h3 class="modal-title" id="exampleModalLabel">Delete Confirmation</h3>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <h4>Are you sure you want to <span class="font-weight-bold">delete</span> this product?</h4>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">No</button>
-                                <form action="{{ route('products.force-delete', $product->id) }}" method="post">
-                                    @csrf
-                                    @method('delete')
-                                    <button type="submit" class="btn btn-outline-danger">Yes, Delete</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal fade" id="restoreModal{{ $product->id }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h3 class="modal-title" id="exampleModalLabel">Restore Confirmation</h3>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <h4>Are you sure you want to <span class="font-weight-bold">restore</span> this product?</h4>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">No</button>
-                                <a href="{{ route('products.restore', $product->id) }}" class="btn btn-sm btn-outline-success py-2">Restore</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            @empty
-                <tr>
-                    <td colspan="8">No products defined</td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
-
-    {{ $products->withQueryString() ->links() }}
-
-
-
-        <!-- Modal لكل فئة -->
-        <div class="modal fade" id="restoreAllModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3 class="modal-title" id="exampleModalLabel">Restore Confirmation</h3>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <h4>Are you sure you want to <span class="font-weight-bold">Restore All</span> this product?</h4>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">No</button>
-                        <form action="{{ route('products.restoreAll') }}" method="post">
-                            @csrf
-                            {{-- @method('delete') --}}
-                            <button type="submit" class="btn btn-outline-danger">Yes, Restore</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal fade" id="deleteAllModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3 class="modal-title" id="exampleModalLabel">Delete Confirmation</h3>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body">
-                        <h4>Are you sure you want to <span class="font-weight-bold">Delete All</span> this product?</h4>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">No</button>
-                        <form action="{{ route('products.forceDeleteAll') }}" method="post">
-                            @csrf
-                            @method('delete')
-                            <button type="submit" class="btn btn-outline-danger">Yes, Delete</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
+    </section>
 @endsection
-

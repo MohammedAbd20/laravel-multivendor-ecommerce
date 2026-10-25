@@ -9,7 +9,7 @@ A full-stack multi-vendor e-commerce platform built with **Laravel 10** and Blad
 
 ## Screenshots
 
-Captured from the running application with the seeded demo data (Faker; product images fall back to a placeholder).
+Captured from the running application with the seeded demo data (demo products have no photos, so they show a placeholder image).
 
 | Storefront | Product details |
 |---|---|
@@ -19,9 +19,19 @@ Captured from the running application with the seeded demo data (Faker; product 
 
 ![Cart](screenshots/cart.png)
 
-| Admin: products | Admin: categories |
+**Admin panel**
+
+![Admin dashboard](screenshots/admin-dashboard.png)
+
+| Orders | Order detail |
 |---|---|
-| ![Admin products](screenshots/admin-products.png) | ![Admin categories](screenshots/admin-categories.png) |
+| ![Admin orders](screenshots/admin-orders.png) | ![Admin order detail](screenshots/admin-order-detail.png) |
+
+| Stores | Store detail |
+|---|---|
+| ![Admin stores](screenshots/admin-stores.png) | ![Admin store detail](screenshots/admin-store-detail.png) |
+
+![Admin products](screenshots/admin-products.png)
 
 ## Features
 
@@ -32,16 +42,18 @@ Captured from the running application with the seeded demo data (Faker; product 
 - Registration, login, password reset and email verification
 - Two-factor authentication (2FA)
 
-**Dashboard**
-- Product and category management (create, edit, delete)
-- Trash with restore and restore-all for products and categories (soft deletes)
-- Product tags
-- Store-based setup: stores, vendor profiles and per-store products
-- Account types: user, admin, super-admin
+**Admin panel**
+- Dashboard: revenue, orders, average order and new customers for the last 30 days against the 30 before, daily sales stacked by store, a "needs attention" list (pending and stuck orders, out-of-stock and low-stock products, inactive stores), top stores and best sellers
+- Orders: status tabs with live counts, filters (search, store, payment, date range), sorting, bulk status change, CSV export, and an order page to update fulfilment and payment status. Cancelling or refunding returns the items to stock
+- Stores: create, edit, activate or deactivate vendors with a logo or generated initials. Inactive stores and their products disappear from the storefront. A store with orders cannot be deleted
+- Products: filters by store, category, status and stock level, stock meters, bulk actions, tags, image upload, unique slugs, trash with restore and permanent delete
+- Categories: nested categories with the same trash and restore flow
+- Customers: spend, order count and last order per customer, with an order history page
+- Admins: super-admins manage other admins. You cannot delete yourself or the last super-admin, and inactive admins cannot sign in
 
 **Orders**
-- Order, order items and order address models
-- On order creation, event listeners automatically **send a notification**, **empty the cart** and **deduct product quantity**
+- Checkout splits the cart into one order per store, with billing and shipping addresses
+- On order creation, event listeners **send a notification**, **empty the cart** and **deduct product quantity**
 
 **API**
 - Products endpoints under `routes/api.php` (Laravel Sanctum)
@@ -85,7 +97,13 @@ npm run dev        # in a second terminal
 php artisan serve
 ```
 
-Open `http://127.0.0.1:8000`.
+Open `http://127.0.0.1:8000`. The seeder fills the database with five stores, about 40 products, 38 customers and 190 orders spread over the last 60 days, so the dashboard has something to show.
+
+Run the tests (SQLite in memory, no setup needed):
+
+```bash
+php artisan test
+```
 
 ### Demo admin account (local only)
 
@@ -103,7 +121,7 @@ Use it for local development only.
 app/
 ├── Http/Controllers/
 │   ├── Auth/         # login, register, password, email verification
-│   ├── Dashboard/    # products, categories, profile
+│   ├── Dashboard/    # overview, orders, stores, products, categories, customers, admins
 │   ├── Front/        # home, products, cart, checkout, currency, 2FA
 │   └── Api/          # products API
 ├── Listeners/        # order created: notify, empty cart, deduct stock

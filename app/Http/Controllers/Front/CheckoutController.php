@@ -30,6 +30,8 @@ class CheckoutController extends Controller
 
         $items =$cart->get()->groupBy('product.store_id')->all();
 
+        $orders = [];
+
         DB::beginTransaction();
 
         try {
@@ -37,8 +39,10 @@ class CheckoutController extends Controller
             foreach ($items as $store_id => $cart_item) {
                 $order = Order::create([
                     'user_id'=>Auth::id(),
+                    'store_id'=>$store_id,
                     'payment_method' => 'cod'
                 ]);
+                $orders[] = $order;
                 foreach( $cart_item as $item){
                     OrderItem::create([
                         'order_id'=>$order->id,
@@ -49,14 +53,15 @@ class CheckoutController extends Controller
                     ]);
                 }
                 foreach($request->post('addr') as $type => $address){
-                    $order['type']= $type;
-                    $order->addresses()->create($address);
+                    $order->addresses()->create($address + ['type' => $type]);
                 }
             }
 
             DB::commit();
 
-            event(new OrderCreated($order));
+            foreach ($orders as $order) {
+                event(new OrderCreated($order));
+            }
 
         } catch (Throwable $e) {
 

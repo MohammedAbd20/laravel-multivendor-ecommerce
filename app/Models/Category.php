@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class Category extends Model
@@ -32,28 +33,35 @@ class Category extends Model
         return $this->hasMany(Category::class,'parent_id','id');
     }
 
-    public function scopeFilter(Builder $builder,$filters) {
-        if($name = $filters['name']??false){
-            $builder->where('name','LIKE',"%{$name}%");
-        }
-        if($status = $filters['status']??false){
-            $builder->where('status','=',$status);
-        }
+    public function scopeFilter(Builder $builder, $filters) {
+        $f = is_array($filters) ? $filters : $filters->all();
+
+        return $builder
+            ->when($f['q'] ?? $f['name'] ?? null, fn ($q, $v) => $q->where('categories.name', 'LIKE', "%{$v}%"))
+            ->when($f['status'] ?? null, fn ($q, $v) => $q->where('categories.status', $v));
     }
+
+    public const STATUSES = ['active', 'archived'];
 
     public static function rules($id = 0) {
         return [
-            "name"=>[
-                "required", 'string', 'min:3', 'max:255',
-                Rule::unique('categories','name')->ignore($id),
-            ],
-            "parent_id"=>[
-                'nullable','int','exists:categories,id'
-            ],
-            "image"=>[
-                'image', 'max:1048576' , 'dimensions:maxheight=70'
-            ],
-            "status"=>'in:active,archived|required',
+            'name' => ['required', 'string', 'min:2', 'max:255', Rule::unique('categories', 'name')->ignore($id)],
+            'parent_id' => ['nullable', 'integer', 'exists:categories,id', Rule::notIn([$id])],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'image' => ['nullable', 'image', 'max:2048'],
+            'status' => ['required', Rule::in(self::STATUSES)],
         ];
+    }
+
+    public static function uniqueSlug(string $name, ?int $ignoreId = null): string {
+        $base = Str::slug($name) ?: 'category';
+        $slug = $base;
+        $i = 2;
+        while (static::withTrashed()->where('slug', $slug)->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))->exists()) {
+            $slug = "{$base}-{$i}";
+            $i++;
+        }
+
+        return $slug;
     }
 }

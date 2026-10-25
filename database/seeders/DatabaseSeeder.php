@@ -19,9 +19,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // User::factory(10)->create();
-        Store::factory(5)->create();
-        Category::factory(10)->create();
-        Product::factory(100)->create();
+        $this->call(DemoDataSeeder::class);
         Admin::factory(3)->create();
 
         // Demo admin for local development (password: "password")

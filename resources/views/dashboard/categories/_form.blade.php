@@ -1,72 +1,42 @@
-
-
-
-@if ($errors->any())
-<div class="alert alert-danger">
-    <ul>
-        @foreach ($errors->all() as $error)
-            <li>{{ $error }}</li>
-        @endforeach
-    </ul>
-</div>
-@endif
-
-
-<div class="form-groub mt-3">
-    {{-- <label for="">Category Name</label>
-    <input class="form-control @error('name') is-invalid @enderror" value='{{ old('name', $category->name) }}'>
-    @error('name')
-        <div class="text-danger">
-            {{ $message }}
+<div class="panel-body">
+    <div class="form-grid">
+        <div class="c-6">
+            <label class="form-label" for="name">Category name</label>
+            <input id="name" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $category->name) }}" required>
+            @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-    @enderror --}}
-    <x-form.input type="text" name="name" :value="$category->name" label="Category Name" />
-</div>
-<div class="form-group mt-3">
-    <label for="">Category Parent</label>
-    <select name="parent_id" class="form-control form-select">
-        <option value="">Primary Category</option>
-        @foreach ($parents as $parent)
-            <option value="{{ $parent->id }}" @selected($category->parent_id == $parent->id)>{{old('name', $parent->name )}}</option>
-        @endforeach
-    </select>
-    @error('parent_id')
-        <div class="text-danger">
-            {{ $message }}
+        <div class="c-6">
+            <label class="form-label" for="parent_id">Parent category</label>
+            <select id="parent_id" name="parent_id" class="form-select @error('parent_id') is-invalid @enderror">
+                <option value="">None (top level)</option>
+                @foreach ($parents as $parent)
+                    <option value="{{ $parent->id }}" @selected(old('parent_id', $category->parent_id) == $parent->id)>{{ $parent->name }}</option>
+                @endforeach
+            </select>
+            @error('parent_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-    @enderror
-</div>
-<div class="form-groub mt-3">
-    <x-form.textarea type="text" name="description" label="Description" rows="4" value="{{ $category->description }}" />
-</div>
-<div class="form-groub mt-3">
-    {{-- <input type="file" name="image" class="form-control" accept="image/*" > --}}
-    <x-form.input type="file" name="image" accept="image/*" label="Image"/>
-    <img src="{{ asset('storage/'.$category->image) }}" alt="" height="200">
-</div>
-<div class="form-groub mt-3 ">
-    <label for="">Status</label>
-    <div>
-        <div class="form-check">
-            <input class="form-check-input" type="radio" name="status" value="active" @checked(old('status',$category->status == 'active'))>
-            <label class="form-check-label">
-                active
-            </label>
+        <div class="c-12">
+            <label class="form-label" for="description">Description</label>
+            <textarea id="description" name="description" rows="3" class="form-control @error('description') is-invalid @enderror">{{ old('description', $category->description) }}</textarea>
+            @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
-        <div class="form-check">
-            <input class="form-check-input" type="radio" name="status" value="archived" @checked(old('status',$category->status == 'archived'))>
-            <label class="form-check-label">
-                archived
-            </label>
+        <div class="c-6">
+            <label class="form-label" for="image">Image</label>
+            <input id="image" type="file" name="image" accept="image/*" class="form-control @error('image') is-invalid @enderror">
+            <div class="help">JPG, PNG or WebP, up to 2 MB.</div>
+            @error('image')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            @if ($category->image)
+                <img src="{{ \Illuminate\Support\Str::startsWith($category->image, ['http://', 'https://']) ? $category->image : asset('storage/' . $category->image) }}" alt="" height="90" class="mt-2" style="border-radius:8px;border:1px solid var(--line)">
+            @endif
+        </div>
+        <div class="c-6">
+            <label class="form-label" for="status">Status</label>
+            <select id="status" name="status" class="form-select @error('status') is-invalid @enderror">
+                @foreach (\App\Models\Category::STATUSES as $s)
+                    <option value="{{ $s }}" @selected(old('status', $category->status) === $s)>{{ ucfirst($s) }}</option>
+                @endforeach
+            </select>
+            @error('status')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
     </div>
-    {{-- <x-form.radio name="status" :checked="$category->status" :options="['active' => 'Active','archived' => "Archived"]"/> --}}
-    @error('status')
-        <div class="text-danger">
-            {{ $message }}
-        </div>
-    @enderror
-</div>
-<div class="form-groub mt-3">
-    <button type="submit" class="btn btn-primary">{{ $button ?? "Save" }}</button>
 </div>

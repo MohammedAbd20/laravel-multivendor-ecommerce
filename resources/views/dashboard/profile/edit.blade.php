@@ -1,83 +1,62 @@
 @extends('layouts.dashboard')
-@section('title','Edit Profile')
+@section('title', 'Your profile')
 @section('breadcrump')
     @parent
-    <li class="breadcrumb-item active">Edit Profile</li>
+    <li>Profile</li>
+@endsection
+@section('subtitle')
+    Signed in as {{ $user->email }}.
 @endsection
 
 @section('content')
-@if($errors->any())
-    <div class="alert alert-danger">
-        <ul>
-            @foreach ($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-    </div>
-@endif
-<x-alert type="success" />
-    <form action="{{ route('dashboard.profile.edit') }}" method="post" enctype="multipart/form-data">
-        @csrf
-        @method('patch')
-
-        <div class="form-row mt-2">
-            <div class="col-md-6">
-                <x-form.input name="first_name" label="First Name" :value="$user->profile->first_name ?? '' "/>
-            </div>
-            <div class="col-md-6">
-                <x-form.input name="last_name" label="Last Name" :value="$user->profile->last_name ?? '' "/>
-            </div>
-        </div>
-        <div class="form-row mt-2">
-            <div class="col-md-6">
-                <x-form.input type="date" name="birthday" label="Birthday" :value="$user->profile->birthday ?? '' "/>
-            </div>
-            <div class="col-md-6">
-                <x-form.radio name="gender" label="Gengder" :options="['male'=>'Male','female'=>'Female']" :checked="$user->profile->gender ?? '' "/>
-            </div>
-        </div>
-        <div class="form-row mt-2">
-            <div class="col-md-4">
-                <x-form.input name="street_address" label="Street Adress" :value="$user->profile->street_address ?? '' "/>
-            </div>
-            <div class="col-md-4">
-                <x-form.input name="city" label="City" :value="$user->profile->city ?? '' "/>
-            </div>
-            <div class="col-md-4">
-                <x-form.input name="state" label="State" :value="$user->profile->state ?? '' "/>
-            </div>
-        </div>
-        <div class="form-row mt-2">
-            <div class="col-md-4">
-                <x-form.input name="postal_code" label="Postal Code" :value="$user->profile->postal_code ?? '' "/>
-            </div>
-            <div class="col-md-4">
-                <label for="">Country</label>
-                <select name="country" class="form-control form-select" id="country">
-                    <option value="">Primary Country</option>
-                    @foreach ($countries as $countryCode => $countryName)
-                        <option value="{{ $countryCode ?? '' }}" {{ old('country', $user->profile->country ?? '') == $countryCode ? 'selected' : '' }}>
-                            {{ $countryName }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label for="">Locale</label>
-                <select name="locale" class="form-control form-select" id="locale">
-                    <option value="">Primary Locale</option>
-                    @foreach ($locales as $localeCode => $localeName)
-                        <option value="{{ $localeCode ?? '' }}" {{ old('locale', $user->profile->locale ?? '') == $localeCode ? 'selected' : '' }}>
-                            {{ $localeName ?? '' }}
-                        </option>
-                    @endforeach
-                </select>
+    @php
+        $p = $user->profile;
+        $field = fn ($name, $label, $type = 'text') => view()->make('dashboard.profile._field', ['name' => $name, 'label' => $label, 'type' => $type, 'p' => $p])->render();
+    @endphp
+    <form class="panel" style="max-width:860px" action="{{ route('dashboard.profile.update') }}" method="post">
+        @csrf @method('PATCH')
+        <div class="panel-body">
+            <div class="form-grid">
+                <div class="c-6">{!! $field('first_name', 'First name') !!}</div>
+                <div class="c-6">{!! $field('last_name', 'Last name') !!}</div>
+                <div class="c-6">{!! $field('birthday', 'Birthday', 'date') !!}</div>
+                <div class="c-6">
+                    <label class="form-label d-block">Gender</label>
+                    <div class="d-flex gap-4 mt-2">
+                        @foreach (['male' => 'Male', 'female' => 'Female'] as $value => $label)
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="gender" id="gender-{{ $value }}" value="{{ $value }}" @checked(old('gender', $p->gender) === $value)>
+                                <label class="form-check-label" for="gender-{{ $value }}">{{ $label }}</label>
+                            </div>
+                        @endforeach
+                    </div>
+                    @error('gender')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                </div>
+                <div class="c-12">{!! $field('street_address', 'Street address') !!}</div>
+                <div class="c-4">{!! $field('city', 'City') !!}</div>
+                <div class="c-4">{!! $field('state', 'State') !!}</div>
+                <div class="c-4">{!! $field('postal_code', 'Postal code') !!}</div>
+                <div class="c-6">
+                    <label class="form-label" for="country">Country</label>
+                    <select name="country" id="country" class="form-select @error('country') is-invalid @enderror">
+                        <option value="">Choose a country</option>
+                        @foreach ($countries as $code => $name)
+                            <option value="{{ $code }}" @selected(old('country', $p->country) == $code)>{{ $name }}</option>
+                        @endforeach
+                    </select>
+                    @error('country')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="c-6">
+                    <label class="form-label" for="locale">Language</label>
+                    <select name="locale" id="locale" class="form-select">
+                        <option value="">Choose a language</option>
+                        @foreach ($locales as $code => $name)
+                            <option value="{{ $code }}" @selected(old('locale', $p->locale) == $code)>{{ $name }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
         </div>
-
-        <button type="submit" class="btn btn-outline-primary mt-4">Edit</button>
+        <div class="form-actions"><button type="submit" class="btn btn-primary">Save profile</button></div>
     </form>
-
-    {{-- <a href="{{ route('front.profile.edit') }}" class="btn btn-outline-primary my-2">Email Pass && User</a> --}}
-
 @endsection

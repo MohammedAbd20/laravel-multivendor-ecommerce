@@ -1,18 +1,17 @@
-    <!-- Sidebar Menu -->
-    <nav class="mt-2">
-        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
-            @foreach ($items as $item)
-                <li class="nav-item">
-                    <a href="{{ route($item['route']) }}" class="nav-link {{ request()->is($item['active'].'*') ? 'active' : '' }}">
-                        <i class="{{ $item['icon'] }}"></i>
-                        <p>{{ $item['title'] }}</p>
-                        @if (isset($item['badge']))
-                            <span class="right badge badge-danger">New</span>
-                        @endif
-                    </a>
-                </li>
+<nav aria-label="Main">
+    @foreach ($groups as $group)
+        <div class="sb-group">
+            <div class="sb-group-title">{{ $group['title'] }}</div>
+            @foreach ($group['items'] as $item)
+                <a href="{{ route($item['route']) }}" class="sb-link {{ request()->is($item['active']) ? 'active' : '' }}"
+                    @if (request()->is($item['active'])) aria-current="page" @endif>
+                    <i class="{{ $item['icon'] }}"></i>
+                    <span>{{ $item['title'] }}</span>
+                    @if ($item['count'] > 0)
+                        <span class="sb-badge">{{ $item['count'] }}</span>
+                    @endif
+                </a>
             @endforeach
-        </ul>
-    </nav>
-
-    <!-- /.sidebar-menu -->
+        </div>
+    @endforeach
+</nav>

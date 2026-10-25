@@ -16,7 +16,7 @@ class AuthenticateUser
         ->orWhere('phone_number', '=', $username)
         ->first();
 
-        if($user && Hash::check($password, $user->password)){
+        if($user && $user->status === 'active' && Hash::check($password, $user->password)){
             return $user;
         }
 

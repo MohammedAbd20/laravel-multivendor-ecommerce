@@ -14,7 +14,7 @@ class Product extends Model
 {
     use HasFactory, SoftDeletes;
     protected $fillable = [
-        'name','parent_id','slug','description','image','status','category_id','store_id','price','compare_price'
+        'name','parent_id','slug','description','image','status','category_id','store_id','price','compare_price','quantity','featured'
     ];
     protected $hidden = [
         'created_at','deleted_at','updated_at'
@@ -23,13 +23,27 @@ class Product extends Model
         'image_url'
     ];
 
-    public function scopeFilter(Builder $builder,$filters) {
-        if($name = $filters['name']??false){
-            $builder->where('name','LIKE',"%{$name}%");
-        }
-        if($status = $filters['status']??false){
-            $builder->where('status','=',$status);
-        }
+    public const LOW_STOCK = 5;
+    public const STATUSES = ['active', 'draft', 'archived'];
+
+    /** Dashboard / API filter. Accepts an array or a Request. */
+    public function scopeFilter(Builder $builder, $filters) {
+        $f = is_array($filters) ? $filters : $filters->all();
+
+        return $builder
+            ->when($f['q'] ?? $f['name'] ?? null, fn ($q, $v) => $q->where('products.name', 'LIKE', "%{$v}%"))
+            ->when($f['status'] ?? null, fn ($q, $v) => $q->where('products.status', $v))
+            ->when($f['store_id'] ?? null, fn ($q, $v) => $q->where('products.store_id', $v))
+            ->when($f['category_id'] ?? null, fn ($q, $v) => $q->where('products.category_id', $v))
+            ->when($f['tag_id'] ?? null, fn ($q, $v) => $q->whereHas('tags', fn ($t) => $t->where('tags.id', $v)))
+            ->when($f['stock'] ?? null, function ($q, $v) {
+                return match ($v) {
+                    'out' => $q->where('products.quantity', '<=', 0),
+                    'low' => $q->where('products.quantity', '>', 0)->where('products.quantity', '<=', self::LOW_STOCK),
+                    'in' => $q->where('products.quantity', '>', self::LOW_STOCK),
+                    default => $q,
+                };
+            });
     }
 
     public function category(){
@@ -60,32 +74,49 @@ class Product extends Model
         });
 
         static::creating(function(Product $product) {
-            $product->slug = Str::slug($product->name);
+            $product->slug = static::uniqueSlug($product->name);
         });
+
+        static::updating(function(Product $product) {
+            if ($product->isDirty('name')) {
+                $product->slug = static::uniqueSlug($product->name, $product->id);
+            }
+        });
+    }
+
+    public static function uniqueSlug(string $name, ?int $ignoreId = null): string {
+        $base = Str::slug($name) ?: 'product';
+        $slug = $base;
+        $i = 2;
+        while (static::withoutGlobalScopes()->withTrashed()->where('slug', $slug)
+            ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))->exists()) {
+            $slug = "{$base}-{$i}";
+            $i++;
+        }
+
+        return $slug;
     }
 
     public static function rules($id = 0) {
         return [
-            "name"=>[
-                "required", 'string', 'min:3', 'max:255',
-                Rule::unique('categories','name')->ignore($id),
-            ],
-            "store_id"=>[
-                'nullable','int','exists:stores,id'
-            ],
-            "category_id"=>[
-                'nullable','int','exists:categories,id'
-            ],
-            "image"=>[
-                'image', 'max:1048576' , 'dimensions:maxheight=70'
-            ],
-            "status"=>'in:active,archived|required',
+            'name' => ['required', 'string', 'min:2', 'max:255'],
+            'description' => ['nullable', 'string', 'max:5000'],
+            'store_id' => ['required', 'integer', 'exists:stores,id'],
+            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'compare_price' => ['nullable', 'numeric', 'min:0', 'gt:price'],
+            'quantity' => ['required', 'integer', 'min:0', 'max:1000000'],
+            'status' => ['required', Rule::in(self::STATUSES)],
+            'featured' => ['nullable', 'boolean'],
+            'image' => ['nullable', 'image', 'max:2048'],
+            'tags' => ['nullable', 'string', 'max:500'],
         ];
     }
 
-
+    /** Products shoppers can see: active product in an active store. */
     public function scopeActive(Builder $builder) {
-        $builder->where('status','=','active');
+        $builder->where('products.status','=','active')
+            ->whereHas('store', fn ($q) => $q->where('status', 'active'));
     }
 
 
@@ -104,34 +135,5 @@ class Product extends Model
             return 0;
         }
         return number_format(100 - (100* $this->price / $this->compare_price),1);
-    }
-
-
-    public function scopeFillter(Builder $builder,$filters) {
-        $options = array_merge([
-            'store_id' => null,
-            'category_id' => null,
-            'tag_id' => [],
-            'status' => 'active',
-        ],$filters);
-
-        $builder->when($options['store_id'],function($builder, $value){
-            $builder->where('store_id',$value);
-        });
-        $builder->when($options['category_id'],function($builder, $value){
-            $builder->where('category_id',$value);
-        });
-        $builder->when($options['status'],function($builder, $value){
-            $builder->where('status',$value);
-        });
-
-        $builder->when($options['tag_id'],function($builder, $value){
-            $builder->whereExists(function($query) use ($value){
-                $query->select(1)
-                ->from('product_tag')
-                ->whereRae('product_id','products.id')
-                ->where('tag_id',$value);
-            });
-        });
     }
 }
