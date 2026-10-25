@@ -9,3 +9,8 @@
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore
+
+# Third-party front-end libraries: exclude from GitHub language stats
+public/plugins/** linguist-vendored
+public/dist/** linguist-vendored
+public/assets/** linguist-vendored
