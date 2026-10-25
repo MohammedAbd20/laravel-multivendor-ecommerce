@@ -50,6 +50,10 @@
                 </div>
                 <!-- End Cart List Title -->
                 <!-- Cart Single List list -->
+                @php
+                    $saving = $cart->get()->sum(fn ($i) => $i->product && $i->product->compare_price > $i->product->price
+                        ? $i->quantity * ($i->product->compare_price - $i->product->price) : 0);
+                @endphp
                 @foreach ($cart->get() as $item)
                     <div class="cart-single-list" data-id="{{ $item->id }}">
                         <div class="row align-items-center">
@@ -59,10 +63,6 @@
                             <div class="col-lg-4 col-md-3 col-12">
                                 <h5 class="product-name"><a href="{{ route('productsF.show',$item->product->slug) }}">
                                         <h5>{{ $item->product->name }}  </h5></a></h5>
-                                <p class="product-des">
-                                    <span><em>Type:</em> Mirrorless</span>
-                                    <span><em>Color:</em> Black</span>
-                                </p>
                             </div>
                             <div class="col-lg-2 col-md-2 col-12">
                                 <div class="count-input">
@@ -73,7 +73,7 @@
                                 <p>{{ Currency::format($item->quantity * $item->product->price) }}</p>
                             </div>
                             <div class="col-lg-2 col-md-2 col-12">
-                                <p>$29.00</p>
+                                <p>{{ Currency::format($item->product->compare_price > $item->product->price ? $item->quantity * ($item->product->compare_price - $item->product->price) : 0) }}</p>
                             </div>
                             <div class="col-lg-1 col-md-2 col-12">
                                 <a class="remove-item" data-id="{{ $item->id }}" href="javascript:void(0)"><i class="lni lni-close"></i></a>
@@ -105,8 +105,8 @@
                                     <ul>
                                         <li>Cart Subtotal<span>{{ Currency::format($cart->total()) }}</span></li>
                                         <li>Shipping<span>Free</span></li>
-                                        <li>You Save<span>$29.00</span></li>
-                                        <li class="last">You Pay<span>$2531.00</span></li>
+                                        <li>You Save<span>{{ Currency::format($saving) }}</span></li>
+                                        <li class="last">You Pay<span>{{ Currency::format($cart->total()) }}</span></li>
                                     </ul>
                                     <div class="button">
                                         <a href="{{ route('checkout') }}" class="btn">Checkout</a>

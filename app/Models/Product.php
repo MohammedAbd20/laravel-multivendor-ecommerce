@@ -91,7 +91,7 @@ class Product extends Model
 
     public function getImageUrlAttribute() {
         if(!$this->image){
-            return 'https://www.opelgtsource.com/assets/default_product.png';
+            return asset('assets/images/default-product.svg');
         }
         if(Str::startsWith($this->image,['http://','https://'])){
             return $this->image;

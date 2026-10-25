@@ -24,6 +24,15 @@ class DatabaseSeeder extends Seeder
         Product::factory(100)->create();
         Admin::factory(3)->create();
 
+        // Demo admin for local development (password: "password")
+        Admin::factory()->create([
+            'name' => 'Admin',
+            'email' => 'admin@example.com',
+            'username' => 'admin',
+            'phone_number' => '0000000000',
+            'super_admin' => true,
+        ]);
+
         // User::factory()->create([
         //     'name' => 'Test User',
         //     'email' => 'test@example.com',

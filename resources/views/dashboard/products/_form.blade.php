@@ -58,7 +58,9 @@
 <div class="form-groub mt-3">
     {{-- <input type="file" name="image" class="form-control" accept="image/*" > --}}
     <x-form.input type="file" name="image" accept="image/*" label="Image"/>
-    <img src="{{ asset('storage/'.$category->image) }}" alt="" height="200">
+    @if ($product->image)
+        <img src="{{ $product->image_url }}" alt="" height="200">
+    @endif
 </div>
 <div class="form-groub mt-3">
     <x-form.input type="number" name="price" :value="$product->price" label="Product Price" />

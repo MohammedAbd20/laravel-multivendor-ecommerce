@@ -44,7 +44,7 @@
                                 </div>
                                 <div class="d-flex flex-wrap justify-content-between bottom-content">
                                     <div class="form-check">
-                                        <input type="checkbox" class="form-check-input width-auto" id="exampleCheck1" name="rememper" value="1">
+                                        <input type="checkbox" class="form-check-input width-auto" id="exampleCheck1" name="remember" value="1">
                                         <label class="form-check-label">Remember me</label>
                                     </div>
                                     @if (Route::has('password.request'))

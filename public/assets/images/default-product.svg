@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="No product image">
+  <rect width="400" height="400" fill="#f1f3f6"/>
+  <g fill="none" stroke="#b4bcc8" stroke-width="10" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M200 110 290 155v90l-90 45-90-45v-90z"/>
+    <path d="m110 155 90 45 90-45M200 200v90"/>
+  </g>
+  <text x="200" y="345" font-family="Arial, Helvetica, sans-serif" font-size="22" text-anchor="middle" fill="#8a94a3">No image</text>
+</svg>

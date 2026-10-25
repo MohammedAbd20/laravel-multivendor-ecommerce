@@ -7,6 +7,22 @@ A full-stack multi-vendor e-commerce platform built with **Laravel 10** and Blad
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
 
+## Screenshots
+
+Captured from the running application with the seeded demo data (Faker; product images fall back to a placeholder).
+
+| Storefront | Product details |
+|---|---|
+| ![Storefront home](screenshots/storefront-home.png) | ![Product details](screenshots/product-details.png) |
+
+**Cart**
+
+![Cart](screenshots/cart.png)
+
+| Admin: products | Admin: categories |
+|---|---|
+| ![Admin products](screenshots/admin-products.png) | ![Admin categories](screenshots/admin-categories.png) |
+
 ## Features
 
 **Storefront**
@@ -70,6 +86,16 @@ php artisan serve
 ```
 
 Open `http://127.0.0.1:8000`.
+
+### Demo admin account (local only)
+
+`php artisan migrate --seed` creates a demo admin:
+
+- URL: `http://127.0.0.1:8000/admin/login`
+- Email: `admin@example.com`
+- Password: `password`
+
+Use it for local development only.
 
 ## Project structure
 

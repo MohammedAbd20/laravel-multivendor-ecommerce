@@ -101,7 +101,6 @@
                     @foreach ($products as $product )
                         <div class="col-lg-3 col-md-6 col-12">
                             <!-- Start Single Product -->
-                            {{}}
                             <x-product-cart :product="$product" />
                             <!-- End Single Product -->
                         </div>

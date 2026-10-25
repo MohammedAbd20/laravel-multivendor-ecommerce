@@ -32,12 +32,13 @@ Route::group([
     Route::post('/categories/restore-all', [CategoriesDashboard::class, 'restoreAll'])->name('categories.restoreAll');
     Route::resource('categories',CategoriesDashboard::class);
 
-    Route::get('/products/trash',[CategoriesDashboard::class,'trash'])->name("products.trash");
-    Route::get('/products/{product}/restore',[CategoriesDashboard::class,'restore'])->name("products.restore");
-    Route::delete('/products/{product}/force-delete',[CategoriesDashboard::class,'forceDelete'])->name("products.force-delete");
-    Route::delete('/products/destroy-all', [CategoriesDashboard::class, 'destroyAll'])->name('products.destroyAll');
-    Route::delete('/products/force-delete-all', [CategoriesDashboard::class, 'forceDeleteAll'])->name('products.forceDeleteAll');
-    Route::post('/products/restore-all', [CategoriesDashboard::class, 'restoreAll'])->name('products.restoreAll');
+    Route::get('/products/trash',[ProductsController::class,'trash'])->name("products.trash");
+    Route::get('/products/{product}/restore',[ProductsController::class,'restore'])->name("products.restore");
+    Route::delete('/products/{product}/force-delete',[ProductsController::class,'forceDelete'])->name("products.force-delete");
+    Route::delete('/products/destroy-all', [ProductsController::class, 'destroyAll'])->name('products.destroyAll');
+    Route::delete('/products/force-delete-all', [ProductsController::class, 'forceDeleteAll'])->name('products.forceDeleteAll');
+    Route::post('/products/restore-all', [ProductsController::class, 'restoreAll'])->name('products.restoreAll');
+    Route::resource('products', ProductsController::class);
 
 });
 
